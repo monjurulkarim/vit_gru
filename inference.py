@@ -13,59 +13,8 @@ import sys
 import cv2
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def load_image(image_path):
-    """Load and preprocess an image."""
-    image = Image.open(image_path).convert('RGB')
-    preprocess = transforms.Compose([
-        transforms.Resize((480, 640)),  # Maintain aspect ratio
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-    return preprocess(image).unsqueeze(0)  # Add batch dimension
 
-def denormalize_bounding_boxes(normalized_boxes, image_width=640, image_height=480):
-    """Convert normalized bounding boxes to pixel coordinates."""
-    denorm_boxes = normalized_boxes.copy()
-    denorm_boxes[:, 0] *= image_width   # x_center
-    denorm_boxes[:, 1] *= image_height  # y_center
-    denorm_boxes[:, 2] *= image_width   # width
-    denorm_boxes[:, 3] *= image_height  # height
-    return denorm_boxes
-
-def run_inference(model, image_folder, sequence_length=12):
-    """Run inference on a sequence of images."""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    model.eval()
-
-    image_files = sorted([f for f in os.listdir(image_folder) if f.endswith(('.png', '.jpg', '.jpeg'))])
-    
-    all_predictions = []
-
-    with torch.no_grad():
-        for i in range(0, len(image_files), sequence_length):
-            sequence = image_files[i:i+sequence_length]
-            
-            # Load and preprocess the sequence of images
-            input_sequence = torch.cat([load_image(os.path.join(image_folder, img)) for img in sequence])
-            input_sequence = input_sequence.to(device)
-
-            # Reshape input to (batch_size, sequence_length, input_size)
-            batch_size, channels, height, width = input_sequence.shape
-            input_reshaped = input_sequence.view(1, batch_size, channels * height * width)
-
-            # Generate predictions
-            predictions = model(input_reshaped)
-            all_predictions.append(predictions.cpu().numpy())
-
-    return np.concatenate(all_predictions, axis=1)
-
-def main():
-    model_path = 'snapshot/best_train_model.pth'
-    data_path = 'Data/Egensevej-1_2__inference_train.csv'
-    frames_directory = 'Data/inference/frames/Egensevej-1_2'
-    image_width = 640
-    image_height = 480
+def main(model_path, data_path, frames_directory, output_frames_directory, image_width,image_height): 
 
 
     model = GRUModel()  # Initialize your model
@@ -79,35 +28,53 @@ def main():
     images= natsorted(glob.glob(os.path.join(frames_directory, '*.jpg')))
 
     for idx in reindexed_id:
+        print(idx)
         data = df[df["reindexed_id"]==idx]
+        # print(data)
+        
         file_name = str(data["File_Name"].iloc[0])
         frames = data["frame"].values
+        # print(frames)
+
         sensor_number = data["reindexed_id"].values[0]
         feature_columns = [col for col in df.columns if col.startswith('feature_')]
         input_columns = ['x', 'y', 'w', 'h'] + feature_columns
         target_columns = ['x', 'y', 'w', 'h']
         start = 0
-        input_feat = torch.tensor(data[input_columns][start : start + 25].values, dtype=torch.float32)
+        input_feat = torch.tensor(data[input_columns][start : start + len(data)].values, dtype=torch.float32)
         input_feat = input_feat.unsqueeze(0)
+        # print(input_feat.shape)
+
         with torch.no_grad():
-            for tt in range(12):
-                bb_input = input_feat[:,tt,:4].unsqueeze(0).to(device)
-                vit_feat = input_feat[:,tt,4:].unsqueeze(0).to(device)
-                y = input_feat[:,tt+1:tt+13,:4].to(device) #total length 25
-
-                output = model(bb_input,vit_feat)
-                # x = input_feat[:,tt,:].unsqueeze(0).to(device)
-                # y = input_feat[:,tt+1:tt+13,:4].to(device) #total length 25
-                # output = model(x)
-                
-
+            for tt in range(input_feat.shape[1]):
+                bb_input = input_feat[:, tt, :4].unsqueeze(0).to(device)
+                vit_feat = input_feat[:, tt, 4:].unsqueeze(0).to(device)
+                # Check if there are enough timesteps remaining for y
+                if tt + 13 <= input_feat.shape[1]:
+                    y = input_feat[:, tt + 1: tt + 13, :4].to(device)
+                    mask = torch.ones_like(y, dtype=torch.bool).to(device)  # All ones, no padding
+                else:
+                    # Pad the remaining timesteps with zeros (or some other padding value)
+                    remaining_length = input_feat.shape[1] - (tt + 1)
+                    y = input_feat[:, tt + 1:, :4].to(device)
+                    padding = torch.zeros((1, 12 - remaining_length, 4)).to(device)
+                    y = torch.cat((y, padding), dim=1)
+                    mask = torch.cat((torch.ones((1, remaining_length, 4)).to(device),
+                            torch.zeros((1, 12 - remaining_length, 4)).to(device)), dim=1)
+                output = model(bb_input, vit_feat)
+                masked_output = output * mask
+                masked_y = y * mask
                 img_file = images[frames[tt]]
-                print(img_file)
+                img_name = img_file.split('/')[-1]                
+                output_img_file = output_frames_directory+'/' + img_name
                 image = cv2.imread(img_file)
+                
                 target_points = []
                 pred_points = []
                 for pts in range(12): # 12 future frames
-                    tar_bbox = y[:,pts]
+                    if mask[0, pts, 0].item() == 0:  # Skip padding
+                        continue
+                    tar_bbox = masked_y[:,pts]
                     
                     tar_x_min = int(tar_bbox[0,0].item()*image_width)
                     tar_y_min = int(tar_bbox[0,1].item()*image_height)
@@ -122,11 +89,11 @@ def main():
 
                     
                     target_points.append((tar_center_x, tar_center_y))
-                    
+
                     # cv2.rectangle(image, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
                     cv2.circle(image, (tar_center_x, tar_center_y), 2, (0, 255, 0), 2)
 
-                    pre_bbox = output[:,pts]
+                    pre_bbox = masked_output[:,pts]
                     pre_x_min = int(pre_bbox[0,0].item()*image_width)
                     pre_y_min = int(pre_bbox[0,1].item()*image_height)
                     pre_width = int(pre_bbox[0,2].item()*image_width)
@@ -142,11 +109,41 @@ def main():
                 for lp in range(len(target_points)-1):
                     cv2.line(image, target_points[lp], target_points[lp+1], (0, 255, 0), 2)
                     cv2.line(image, pred_points[lp], pred_points[lp+1], (255, 0, 0), 2)
+                
 
                 cv2.imwrite(img_file,image)
 
+model_path = 'snapshot/best_test_model.pth'
+input_image_folder = 'Data/inference/all_videos/'
+# input_data_path = 'Data/inference/train_inference'
 
-main()
+output_main_folder = 'Data/inference/all_videos/'
+
+
+suffix = '__inference_test.csv'
+
+# data_path = 'Data/Egensevej-1_2__inference_train.csv'
+# frames_directory = 'Data/inference/frames/Egensevej-1_2'
+image_width = 640
+image_height = 480
+
+image_folder_list = os.listdir(input_image_folder)
+
+for folders in image_folder_list:
+    data_path = 'Data/inference/test_inference/'+folders + suffix
+    if not os.path.exists(data_path):
+        print('couldnt find : ' ,data_path)
+        continue
+    frames_directory = input_image_folder + folders
+    output_frames_directory = output_main_folder + folders
+    if not os.path.exists(output_frames_directory):
+        os.makedirs(output_frames_directory)
+    main(model_path, data_path, frames_directory, output_frames_directory,image_width,image_height)
+    print('Done : ', folders)
+    
+
+
+# main()
 
 
 

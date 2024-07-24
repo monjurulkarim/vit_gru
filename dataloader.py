@@ -48,8 +48,8 @@ class SensorDataset(Dataset):
         frames = data["frame"].values
         
         # Ensure there's enough data for the training and forecast windows
-        if data_length <= self.T + self.S:
-            raise ValueError(f"Not enough data for reindexed_id {idx}: data_length {data_length}, T {self.T}, S {self.S}")
+        # if data_length <= self.T + self.S:
+        #     raise ValueError(f"Not enough data for reindexed_id {idx}: data_length {data_length}, T {self.T}, S {self.S}")
 
         # Randomly select a starting point for the training window
         start = 0
@@ -62,7 +62,7 @@ class SensorDataset(Dataset):
         index_tar = torch.tensor([i for i in range(start + self.T, start + self.T + self.S)])
         
         # Extract input and target sequences
-        input_feat = torch.tensor(data[self.input_columns][start : start + 25].values, dtype=torch.float32)
+        input_feat = torch.tensor(data[self.input_columns][start : start + len(data)].values, dtype=torch.float32)
         # bbox = 0
         # true = torch.tensor(data[self.target_columns][start + self.T : start + self.T + self.S].values, dtype=torch.float32)
 

@@ -6,6 +6,45 @@ def denormalize_coordinates(coords, original_width, original_height):
     coords[:, :, 1] = coords[:, :, 1] * original_height
     return coords
 
+##include the mask
+# def final_displacement_error(gt, output, mask, original_width, original_height):
+#     gt_denormalized = denormalize_coordinates(gt.clone(), original_width, original_height)
+#     output_denormalized = denormalize_coordinates(output.clone(), original_width, original_height)
+    
+#     # Ensure mask has the same number of dimensions as gt and output
+#     valid_mask = mask[:, :, :2].bool()
+#     valid_gt = gt_denormalized[:, :, :2][valid_mask]
+#     valid_output = output_denormalized[:, :, :2][valid_mask]
+    
+#     # Reshape to ensure we get the last valid coordinates
+#     gt_valid = valid_gt.view(-1, 2)
+#     output_valid = valid_output.view(-1, 2)
+    
+#     gt_last_boxes = gt_valid[-1, :] 
+#     output_last_boxes = output_valid[-1, :] 
+    
+#     fde = torch.sqrt(F.mse_loss(gt_last_boxes, output_last_boxes, reduction='none').sum())
+    
+#     return fde.item()
+
+# def average_displacement_error(gt, output, mask, original_width, original_height):
+#     gt_denormalized = denormalize_coordinates(gt.clone(), original_width, original_height)
+#     output_denormalized = denormalize_coordinates(output.clone(), original_width, original_height)
+    
+#     # Ensure mask has the same number of dimensions as gt and output
+#     valid_mask = mask[:, :, :2].bool()
+#     valid_gt = gt_denormalized[:, :, :2][valid_mask]
+#     valid_output = output_denormalized[:, :, :2][valid_mask]
+    
+#     # Compute the squared differences only for valid parts
+#     squared_diff = (valid_gt - valid_output) ** 2
+#     valid_squared_diff = squared_diff.sum(dim=-1).sqrt()
+    
+#     # Calculate ADE by averaging over valid positions
+#     ade = valid_squared_diff.mean()
+    
+#     return ade.item()
+
 def final_displacement_error(gt, output, original_width, original_height):
     gt_denormalized = denormalize_coordinates(gt.clone(), original_width, original_height)
     output_denormalized = denormalize_coordinates(output.clone(), original_width, original_height)
