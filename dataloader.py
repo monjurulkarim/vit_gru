@@ -18,7 +18,7 @@ class SensorDataset(Dataset):
             csv_file (string): Path to the csv file.
             root_dir (string): Directory
         """
-        
+
         # load raw data file
         csv_file = os.path.join(root_dir, csv_name)
         self.df = pd.read_csv(csv_file)
@@ -37,7 +37,7 @@ class SensorDataset(Dataset):
         return len(self.df.groupby(by=["reindexed_id"]))
         # return len(self.df.groupby(by=["reindexed_id
 
-    # Will pull an index between 0 and __len__. 
+    # Will pull an index between 0 and __len__.
     def __getitem__(self, idx):
         # Sensors are indexed from 1
         idx = idx + 1
@@ -46,28 +46,28 @@ class SensorDataset(Dataset):
         data = self.df[self.df["reindexed_id"] == idx]
         data_length = len(data)
         frames = data["frame"].values
-        
+
         # Ensure there's enough data for the training and forecast windows
         # if data_length <= self.T + self.S:
         #     raise ValueError(f"Not enough data for reindexed_id {idx}: data_length {data_length}, T {self.T}, S {self.S}")
 
         # Randomly select a starting point for the training window
         start = 0
-       
+
         # Get the sensor number (file name)
         sensor_number = str(data[["File_Name"]].iloc[start].values.item())
-        
+
         # Create indices for input and target windows
         index_in = torch.tensor([i for i in range(start, start + self.T)])
         index_tar = torch.tensor([i for i in range(start + self.T, start + self.T + self.S)])
-        
+
         # Extract input and target sequences
         input_feat = torch.tensor(data[self.input_columns][start : start + len(data)].values, dtype=torch.float32)
         # bbox = 0
         # true = torch.tensor(data[self.target_columns][start + self.T : start + self.T + self.S].values, dtype=torch.float32)
 
         return input_feat,  sensor_number, frames
-    
+
 if __name__ == '__main__':
     # Assuming 'SensorDataset' class and 'test_csv' are defined
     test_csv = 'test_dataset.csv'
@@ -81,7 +81,5 @@ if __name__ == '__main__':
     for input_feat, sensor_number, frames in test_dataloader:
         print("input_feat:", input_feat.shape)
         bbox= input_feat[:,:,:4]
-        print("bbox:", tt)
         print("Sensor Number:", sensor_number)
         print('=========')
-
