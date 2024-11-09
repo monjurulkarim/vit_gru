@@ -20,7 +20,6 @@ snapshot/
 *.pyc
 *.mp4
 *.mkv
-*.txt
 *.joblib
 *.md
 *.pth
