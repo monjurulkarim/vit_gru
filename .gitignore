@@ -27,3 +27,4 @@ snapshot/
 *.pth
 *.gz
 *.tar
+*.pt

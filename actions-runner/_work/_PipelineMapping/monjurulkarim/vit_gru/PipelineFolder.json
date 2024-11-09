@@ -1,0 +1,12 @@
+﻿{
+  "repositoryName": "monjurulkarim/vit_gru",
+  "pipelineDirectory": "vit_gru",
+  "workspaceDirectory": "vit_gru/vit_gru",
+  "repositories": {
+    "monjurulkarim/vit_gru": {
+      "repositoryPath": "vit_gru/vit_gru",
+      "lastRunOn": "11/09/2024 15:52:08 +00:00"
+    }
+  },
+  "lastRunOn": "11/09/2024 15:52:08 +00:00"
+}
