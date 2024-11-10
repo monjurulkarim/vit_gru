@@ -76,7 +76,11 @@ jobs:
       - name: Run Sanity Check in Docker Container
         run: |
           docker pull rajubuet24/vit-trajectory:latest
-          docker run --rm rajubuet24/vit-trajectory:latest python main.py --phase=test | tee output.log
+          docker run --rm \
+            -v /data1/karim/vit_trajectory/Data/train_dataset.csv:/app/Data/train_dataset.csv \
+            -v /data1/karim/vit_trajectory/Data/test_dataset.csv:/app/Data/test_dataset.csv \
+            -v /data1/karim/vit_trajectory/snapshot/best_test_model.pth:/app/snapshot/best_test_model.pth \
+            rajubuet24/vit-trajectory:latest python main.py --phase=test | tee output.log
         shell: bash
 
       - name: Display Results
