@@ -1,6 +1,7 @@
 from model import AdvancedGRUModel as GRUModel
 import torch.nn as nn
 import torch, math
+import argparse
 
 import torch.nn.functional as F
 import os
@@ -28,7 +29,7 @@ batch_size = 1
 shuffle = True
 pin_memory = True
 training_length = 1
-forecast_window = 20
+forecast_window = 12
 input_size = 772
 num_epochs= 50
 path_to_save_loss= 'results/'
@@ -94,104 +95,6 @@ def test_eval(test_dataloader, model, device):
 
 
 
-# import torch
-# import torch.nn as nn
-# from tqdm import tqdm
-# import os
-# import csv
-# from datetime import date
-# import time
-
-# def train(model, train_dataloader, test_dataloader, device, num_epochs, learning_rate, path_to_save_loss):
-#     model_dir = './snapshot'
-#     if not os.path.exists(model_dir):
-#         os.makedirs(model_dir)
-
-#     model = model.to(device)
-#     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-#     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
-#     criterion = nn.MSELoss()
-
-#     min_train_loss = float('inf')
-#     min_fde = float('inf')
-#     best_train_model = ""
-#     best_test_model = ""
-
-#     # Setup CSV for logging results
-#     today = date.today()
-#     date_saved = today.strftime("%b-%d-%Y")
-#     current_time = time.strftime("%H-%M-%S", time.localtime())
-#     result_csv = os.path.join(path_to_save_loss, f'result{date_saved}_{current_time}.csv')
-
-#     with open(result_csv, 'a', newline='') as f:
-#         writer = csv.writer(f)
-#         writer.writerow(['epoch', 'Train_Loss', 'Test_loss', 'fde', 'ade', 'fiou'])
-
-#     for epoch in range(num_epochs):
-#         model.train()
-#         train_loss = 0.0
-#         loop = tqdm(train_dataloader, total=len(train_dataloader), leave=True)
-
-#         for input_feat, sensor_number, frames in loop:
-#             optimizer.zero_grad()
-#             batch_loss = 0.0
-
-#             for tt in range(12):  # prediction window = 12
-#                 bb_input = input_feat[:, tt, :4].unsqueeze(0).to(device)
-#                 vit_feat = input_feat[:, tt, 4:].unsqueeze(0).to(device)
-#                 y = input_feat[:, tt+1:tt+13, :4].to(device)  # total length 25
-
-#                 output = model(bb_input, vit_feat)
-#                 loss = criterion(output, y)
-#                 batch_loss += loss.item()
-
-#             batch_loss /= 12  # Average loss over 12 time steps
-#             batch_loss = torch.tensor(batch_loss, requires_grad=True)
-#             batch_loss.backward()
-
-#             torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
-#             optimizer.step()
-
-#             train_loss += batch_loss.item()
-#             loop.set_description(f"Epoch [{epoch+1}/{num_epochs}]")
-#             loop.set_postfix(loss=batch_loss.item())
-
-#         avg_train_loss = train_loss / len(train_dataloader)
-
-#         if avg_train_loss < min_train_loss:
-#             torch.save(model.state_dict(), os.path.join(model_dir, "best_train_model.pth"))
-#             min_train_loss = avg_train_loss
-#             best_train_model = "best_train_model.pth"
-#             print(f'Best train model saved in epoch {epoch+1}')
-
-#         if epoch % 2 == 0:  # Evaluate every 2 epochs
-#             print('================================')
-#             model.eval()
-#             with torch.no_grad():
-#                 fde, ade, fiou, test_loss = test_eval(test_dataloader, model, device)
-
-#             print(f'FDE: {fde}')
-#             print(f'ADE: {ade}')
-#             print(f'FIoU: {fiou}')
-
-#             with open(result_csv, 'a+', newline='') as saving_result:
-#                 writer = csv.writer(saving_result)
-#                 writer.writerow([epoch+1, avg_train_loss, test_loss, fde, ade, fiou])
-
-#             if fde < min_fde:
-#                 torch.save(model.state_dict(), os.path.join(model_dir, "best_test_model.pth"))
-#                 min_fde = fde
-#                 best_test_model = "best_test_model.pth"
-#                 print(f'Min FDE model saved in epoch {epoch+1}')
-
-#         scheduler.step(avg_train_loss)  # Update learning rate based on train loss
-
-#     return best_train_model, best_test_model
-
-# model= GRUModel().to(device)
-# train(model, train_dataloader, test_dataloader, device, num_epochs, learning_rate, path_to_save_loss)
-
-# Custom loss function
 def improved_custom_bbox_loss(masked_output, masked_y, mask):
     # Use Mean Squared Error as the base loss
     mse_loss = nn.MSELoss(reduction='none')
@@ -325,21 +228,22 @@ def train():
         scheduler.step(avg_train_loss)
         model.train()
 
-train()
+def sanity_check():
+    model_path = 'snapshot/best_test_model.pth'
+    model = GRUModel()  # Initialize your model
+    model.load_state_dict(torch.load(model_path))
+    model.to(device)
+    model.eval()
+    fde, ade, fiou , test_loss = test_eval(test_dataloader, model, device)
+    print(fde)
+    return fde, ade, fiou , test_loss
 
-# # Example usage
-# batch_size = 32
-# input_size = 772
-# seq_length = 1
-
-# # Create an instance of the model
-# model = GRUModel()
-
-# # Create a random input tensor
-# x = torch.randn(batch_size, seq_length, input_size)
-
-# # Forward pass
-# output = model(x)
-
-# print(f"Input shape: {x.shape}")
-# print(f"Output shape: {output.shape}")
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--phase', type=str, default='train', choices=['check', 'train', 'test'],
+                        help='dimension of the resnet output. Default: 2048')
+    p = parser.parse_args()
+    if p.phase == 'test':
+        sanity_check()
+    else:
+        train()

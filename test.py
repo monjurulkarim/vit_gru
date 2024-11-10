@@ -1,6 +1,6 @@
 import argparse
 
-from vit_trajectory.dataloader import *
+from dataloader import *
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch
@@ -95,7 +95,7 @@ for index_in, index_tar, _input, target, sensor_number in test_dataloader:
 
     frames_folder_name = file_name.split('_object')[0]
 
-    
+
     length = training_length+ forecast_window+1
 
     with open(frame_number_file, "r") as file:
@@ -121,7 +121,7 @@ for index_in, index_tar, _input, target, sensor_number in test_dataloader:
         for coord in pred_coord:
             # y, x, w, h = coord[0]
             # top_left_x = int((x ) * image_height) ## image_width
-            # top_left_y = int((y ) * image_width) ##image_height 
+            # top_left_y = int((y ) * image_width) ##image_height
             # bottom_right_x = int((x+h)*image_height)
             # bottom_right_y = int((y+w)*image_width)
 
@@ -158,7 +158,7 @@ for index_in, index_tar, _input, target, sensor_number in test_dataloader:
 
         target_coor = all_input[fr]
         target_points = []
-        
+
         for coord in target_coor:
             y_norm, x_norm, w_norm, h_norm = coord[0]
 
@@ -237,11 +237,11 @@ for index_in, index_tar, _input, target, sensor_number in test_dataloader:
     #         # print(pos_encoding_new_val.shape)
     #         # print(pos_encodings.shape)
     #         # print('==========')
-            
+
     #         next_input_model = torch.cat((src[i+1:, :, :].unsqueeze(-1), prediction[-1,:,:].unsqueeze(0))) #t2 -- t47, t48'
-            
+
     #         next_input_model = torch.cat((next_input_model, pos_encodings), dim = 2) # 47, 1, 7 input for next round
-            
+
 
     # true = torch.cat((src[1:,:,0],target[:-1,:,0]))
     # # loss = criterion(true, all_predictions[:,:,0])
@@ -263,4 +263,3 @@ for index_in, index_tar, _input, target, sensor_number in test_dataloader:
 # average_loss = total_loss / total_samples
 
 # print(f'Test Loss: {average_loss:.4f}')
-
