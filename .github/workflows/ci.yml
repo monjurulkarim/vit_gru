@@ -31,6 +31,7 @@
 #
 #       - name: Image digest
 #         run: echo ${{ steps.docker_build.outputs.digest }}
+
 name: CI for PyTorch Model
 
 on:
@@ -40,40 +41,6 @@ on:
     branches: [ "master" ]
 
 jobs:
-  build-and-test:
-    runs-on: self-hosted
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Python (if not already installed on self-hosted runner)
-        uses: actions/setup-python@v3
-        with:
-          python-version: '3.8'  # Adjust to match your self-hosted runner's environment
-
-      - name: Install dependencies (optional if dependencies are pre-installed)
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt  # Make sure requirements.txt includes all necessary libraries
-
-      - name: Run Sanity Check
-        id: sanity_check
-        run: |
-          python main.py --phase=test | tee output.log
-        shell: bash
-
-      - name: Display Results
-        run: |
-          # Extract values from the output log file
-          fde=$(grep -oP '(?<=fde: ).*' output.log | tail -1)
-          ade=$(grep -oP '(?<=ade: ).*' output.log | tail -1)
-          fiou=$(grep -oP '(?<=fiou: ).*' output.log | tail -1)
-          test_loss=$(grep -oP '(?<=test_loss: ).*' output.log | tail -1)
-          echo "FDE: $fde"
-          echo "ADE: $ade"
-          echo "FIOU: $fiou"
-          echo "Test Loss: $test_loss"
-
   build-and-push:
     runs-on: self-hosted
     steps:
@@ -98,3 +65,28 @@ jobs:
 
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
+
+  build-and-test:
+    runs-on: self-hosted
+    needs: build-and-push  # Ensures this job runs after the image is built
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run Sanity Check in Docker Container
+        run: |
+          docker pull rajubuet24/vit-trajectory:latest
+          docker run --rm rajubuet24/vit-trajectory:latest python main.py --phase=test | tee output.log
+        shell: bash
+
+      - name: Display Results
+        run: |
+          # Extract values from the output log file
+          fde=$(grep -oP '(?<=fde: ).*' output.log | tail -1)
+          ade=$(grep -oP '(?<=ade: ).*' output.log | tail -1)
+          fiou=$(grep -oP '(?<=fiou: ).*' output.log | tail -1)
+          test_loss=$(grep -oP '(?<=test_loss: ).*' output.log | tail -1)
+          echo "FDE: $fde"
+          echo "ADE: $ade"
+          echo "FIOU: $fiou"
+          echo "Test Loss: $test_loss"
